@@ -10,7 +10,7 @@ def load_data(path):
     df["Order Date"] = pd.to_datetime(df["Order Date"], dayfirst=True, errors="coerce")
     df["Ship Date"] = pd.to_datetime(df["Ship Date"], dayfirst=True, errors="coerce")
     df["Ship Delay Days"] = (df["Ship Date"] - df["Order Date"]).dt.days
-    df["Margin Rate"] = df["Profit"] / df["Sales Amount"]
+    df["Margin Rate"] = df["Profit"].div(df["Sales Amount"], fill_value=0)
     df["Discount Rate"] = df["Discount (%)"] / 100
     df["Cancelled/Returned"] = df["Delivery Status"].str.lower().isin(["cancelled", "returned"])
     return df
@@ -49,8 +49,12 @@ def main():
     col2.metric("Ventes totales", f"{df['Sales Amount'].sum():,.0f}")
     col3.metric("Profit total", f"{df['Profit'].sum():,.0f}")
 
+    min_date = df["Order Date"].min()
+    max_date = df["Order Date"].max()
+    min_date_str = min_date.date().isoformat() if pd.notna(min_date) else "N/A"
+    max_date_str = max_date.date().isoformat() if pd.notna(max_date) else "N/A"
     st.markdown(
-        f"- Période : **{df['Order Date'].min().date()}** à **{df['Order Date'].max().date()}**\n"
+        f"- Période : **{min_date_str}** à **{max_date_str}**\n"
         f"- Marge moyenne : **{df['Margin Rate'].mean():.2%}**\n"
         f"- Taux de retours/annulations : **{df['Cancelled/Returned'].mean():.2%}**"
     )
@@ -71,9 +75,10 @@ def main():
         sales=("Sales Amount", "sum"),
         profit=("Profit", "sum"),
         risk_orders=("Cancelled/Returned", "sum"),
+        orders=("Order ID", "count"),
     )
-    region_metrics["risk_rate"] = region_metrics["risk_orders"] / df.groupby("Region")["Order ID"].count()
-    st.dataframe(region_metrics.style.format({"sales": "{:, .0f}", "profit": "{:, .0f}", "risk_rate": "{:.2%}"}))
+    region_metrics["risk_rate"] = region_metrics["risk_orders"] / region_metrics["orders"]
+    st.dataframe(region_metrics.style.format({"sales": "{:,.0f}", "profit": "{:,.0f}", "risk_rate": "{:.2%}"}))
     st.bar_chart(region_metrics["sales"])
     st.bar_chart(region_metrics["risk_rate"])
 
